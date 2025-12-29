@@ -36,3 +36,6 @@ wax4web/buildroot-2023.02.9
 wax4web/buildroot-2023.02.9-wax
 buildroot-source-i386.tar.gz
 buildroot-2023.02.9.tar.gz
+
+# Rust build artifacts
+wax_rust/target/

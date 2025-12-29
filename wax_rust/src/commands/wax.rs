@@ -402,22 +402,7 @@ fn squash_partitions(loopdev: &str) -> Result<()> {
     
     for (part_num, _) in gpt.get_partitions_physical_order() {
         log_info(&format!("Squashing {}p{}", loopdev, part_num));
-        
-        // Use sfdisk to move partition data
-        let input = "+,-\n";
-        let mut child = std::process::Command::new("sudo")
-            .args(&["sfdisk", "-N", &part_num.to_string(), "--move-data", loopdev])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()?;
-        
-        if let Some(stdin) = child.stdin.as_mut() {
-            use std::io::Write;
-            stdin.write_all(input.as_bytes())?;
-        }
-        
-        let _ = child.wait();
+        utils::sfdisk_squash_partition(loopdev, part_num)?;
     }
     
     Ok(())

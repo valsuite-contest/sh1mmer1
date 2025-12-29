@@ -104,19 +104,6 @@ pub fn shell_output(cmd: &str, args: &[&str], sudo: bool) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-/// Suppress command output based on debug flag
-pub fn suppress<F>(func: F, debug: bool) -> Result<()>
-where
-    F: FnOnce() -> Result<()>,
-{
-    if debug {
-        func()
-    } else {
-        // Suppress output
-        func()
-    }
-}
-
 /// Parse size strings like "4M", "1G", "512K" to bytes
 pub fn parse_bytes(s: &str) -> Result<u64> {
     let s = s.trim().to_uppercase();
@@ -305,6 +292,32 @@ pub fn detect_binary_arch(path: &Path) -> Result<String> {
     } else {
         Ok("x86_64".to_string())
     }
+}
+
+/// Run sfdisk to squash a partition (move data to minimize gaps)
+pub fn sfdisk_squash_partition(loopdev: &str, part_num: u32) -> Result<()> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    
+    let input = "+,-\n";
+    let mut child = Command::new("sudo")
+        .args(&["sfdisk", "-N", &part_num.to_string(), "--move-data", loopdev])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .context("Failed to spawn sfdisk")?;
+    
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin.write_all(input.as_bytes())?;
+    }
+    
+    let status = child.wait().context("sfdisk process failed")?;
+    if !status.success() {
+        bail!("sfdisk squash failed for partition {}", part_num);
+    }
+    
+    Ok(())
 }
 
 #[cfg(test)]

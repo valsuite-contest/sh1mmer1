@@ -1,6 +1,7 @@
 //! Command implementations for M1NSH1M
 
 pub mod wax;
+pub mod minimal;
 pub mod stripper;
 pub mod gpt2image;
 pub mod gpttruncate;

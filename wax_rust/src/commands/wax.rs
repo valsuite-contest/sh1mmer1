@@ -7,11 +7,11 @@ use anyhow::{bail, Context, Result};
 use clap::Args;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tempfile::TempDir;
 
+use crate::core;
 use crate::ext2;
 use crate::gpt::{self, Gpt, partition_types};
-use crate::utils::{self, log_info, log_debug, log_warn, log_error};
+use crate::utils::{self, log_info, log_debug};
 
 /// Arguments for the wax command
 #[derive(Args, Debug)]
@@ -87,22 +87,10 @@ pub fn run(args: WaxArgs, debug: bool) -> Result<()> {
     }
 
     // Validate image
-    let image = &args.image;
-    if utils::is_block_device(image) {
-        log_info("Image is a block device, performance may suffer...");
-    } else {
-        if !utils::check_file_rw(image) {
-            bail!("{} doesn't exist, isn't a file, or isn't RW", image.display());
-        }
-        utils::check_slow_fs(image)?;
-    }
-    
-    if !gpt::check_gpt_image(image)? {
-        bail!("{} is not GPT, or is corrupted", image.display());
-    }
+    core::validate_shim_image(&args.image)?;
 
     // Find the script directory (for payload dirs)
-    let script_dir = find_script_dir()?;
+    let script_dir = core::find_script_dir()?;
     
     // Set up bootloader directory
     let bootloader_dir = args.bootloader_dir
@@ -180,23 +168,18 @@ pub fn run(args: WaxArgs, debug: bool) -> Result<()> {
     let bootloader_part_size = utils::parse_bytes(&args.bootloader_part_size)
         .context(format!("Could not parse size '{}'", args.bootloader_part_size))?;
 
+    let image = &args.image;
+
     // Fix backup GPT table
-    log_info("Fixing backup GPT table...");
-    utils::shell("sgdisk", &["-e", image.to_str().unwrap()], true, !debug)?;
+    core::fix_gpt_backup(image, debug)?;
     
     // Delete all partitions except kernel and rootfs (2 and 3)
-    delete_partitions_except(image, &[2, 3])?;
+    core::delete_partitions_except(image, &[2, 3])?;
     utils::safesync();
 
-    // Create loop device
-    log_info("Creating loop device");
-    let loopdev = utils::create_loop_device(image)?;
-    log_debug(&format!("Loop device: {}", loopdev));
-    
-    // Set up cleanup
-    let _cleanup = scopeguard::guard(loopdev.clone(), |dev| {
-        let _ = cleanup_loop_device(&dev);
-    });
+    // Create loop device with automatic cleanup
+    let loop_mgr = core::LoopDeviceManager::new(image)?;
+    let loopdev = &loop_mgr.device;
     utils::safesync();
 
     // Detect or use specified architecture
@@ -204,33 +187,32 @@ pub fn run(args: WaxArgs, debug: bool) -> Result<()> {
         log_info(&format!("Using specified architecture: {}", arch));
         arch
     } else {
-        detect_architecture(&loopdev)?
+        core::detect_architecture(loopdev)?
     };
     utils::safesync();
 
     // Shrink root partition (unless fast mode)
     if !args.fast {
-        shrink_root(&loopdev)?;
+        core::shrink_root_partition(loopdev)?;
         utils::safesync();
         
-        squash_partitions(&loopdev)?;
+        core::squash_partitions(loopdev)?;
         utils::safesync();
     } else {
         log_info("Fast mode on, skipping shrink/squash");
     }
 
     // Patch bootloader partition
-    patch_bootloader(&loopdev, image, &bootloader_dir, &target_arch, bootloader_part_size)?;
+    patch_bootloader(loopdev, image, &bootloader_dir, &target_arch, bootloader_part_size)?;
     utils::safesync();
 
     // Swap partition 3 to partition 4
-    log_info("Swapping partition table entries...");
-    utils::shell("sgdisk", &["-r", "3:4", &loopdev], true, !debug)?;
+    core::swap_partitions(loopdev, 3, 4, debug)?;
     utils::safesync();
 
     // Patch M1NSH1M partition
     patch_m1nsh1m(
-        &loopdev,
+        loopdev,
         image,
         &payload_dir,
         extra_payload_dir.as_deref(),
@@ -241,170 +223,15 @@ pub fn run(args: WaxArgs, debug: bool) -> Result<()> {
     )?;
     utils::safesync();
 
-    // Detach loop device
-    utils::detach_loop_device(&loopdev)?;
+    // Drop loop device manager to release it
+    drop(loop_mgr);
     utils::safesync();
 
     // Truncate image
-    truncate_image(image, args.finalsizefile.as_deref())?;
+    core::truncate_image(image, args.finalsizefile.as_deref())?;
     utils::safesync();
 
     log_info("Done. Have fun!");
-    Ok(())
-}
-
-/// Find the script directory (where wax/payloads are located)
-fn find_script_dir() -> Result<PathBuf> {
-    // Try to find relative to executable
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            // Check for wax directory structure
-            let wax_dir = parent.join("wax");
-            if wax_dir.exists() {
-                return Ok(wax_dir);
-            }
-            // Check if we're already in wax directory
-            if parent.join("m1nsh1m_bw").exists() || parent.join("sh1mmer_bw").exists() {
-                return Ok(parent.to_path_buf());
-            }
-        }
-    }
-    
-    // Try current directory
-    let cwd = std::env::current_dir()?;
-    if cwd.join("m1nsh1m_bw").exists() || cwd.join("sh1mmer_bw").exists() {
-        return Ok(cwd);
-    }
-    
-    // Try parent directory
-    if let Some(parent) = cwd.parent() {
-        let wax_dir = parent.join("wax");
-        if wax_dir.exists() {
-            return Ok(wax_dir);
-        }
-    }
-    
-    // Default to current directory
-    Ok(cwd)
-}
-
-/// Delete all partitions except the specified ones
-fn delete_partitions_except(image: &Path, keep: &[u32]) -> Result<()> {
-    let gpt = Gpt::load_from_file(image)?;
-    let used_parts = gpt.get_used_partitions();
-    
-    let to_delete: Vec<String> = used_parts
-        .iter()
-        .filter(|p| !keep.contains(p))
-        .map(|p| p.to_string())
-        .collect();
-    
-    if !to_delete.is_empty() {
-        log_info(&format!("Deleting partitions: {}", to_delete.join(", ")));
-        let mut args = vec!["--delete".to_string(), image.to_str().unwrap().to_string()];
-        args.extend(to_delete);
-        let args_str: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        utils::shell("sfdisk", &args_str, true, false)?;
-    }
-    
-    Ok(())
-}
-
-/// Detect target architecture from rootfs
-fn detect_architecture(loopdev: &str) -> Result<String> {
-    let mnt = tempfile::tempdir()?;
-    let part3 = format!("{}p3", loopdev);
-    
-    utils::mount_partition(&part3, mnt.path(), true)?;
-    
-    let arch = if mnt.path().join("bin/bash").exists() {
-        let file_info = utils::get_file_type(&mnt.path().join("bin/bash"))?;
-        let file_info_lower = file_info.to_lowercase();
-        
-        if file_info_lower.contains("aarch64") 
-            || file_info_lower.contains("armv8") 
-            || file_info_lower.contains("arm") 
-        {
-            "aarch64".to_string()
-        } else {
-            "x86_64".to_string()
-        }
-    } else {
-        "x86_64".to_string()
-    };
-    
-    utils::unmount_partition(mnt.path())?;
-    
-    log_info(&format!("Detected architecture: {}", arch));
-    Ok(arch)
-}
-
-/// Shrink the ROOT partition
-fn shrink_root(loopdev: &str) -> Result<()> {
-    log_info("Shrinking ROOT");
-    
-    let part3 = format!("{}p3", loopdev);
-    
-    // Enable RW mount
-    ext2::enable_rw_mount(Path::new(&part3), 0)?;
-    
-    // Run e2fsck
-    ext2::check_filesystem(&part3)?;
-    
-    // Resize to minimum
-    ext2::shrink_filesystem_to_minimum(&part3)?;
-    
-    // Disable RW mount
-    ext2::disable_rw_mount(Path::new(&part3), 0)?;
-    
-    // Get new size info
-    let fs_info = ext2::get_fs_info(&part3)?;
-    let sector_size = gpt::get_sector_size(Path::new(loopdev))?;
-    
-    log_debug(&format!(
-        "sector size: {}, block size: {}, block count: {}",
-        sector_size, fs_info.block_size, fs_info.block_count
-    ));
-    
-    // Calculate new partition size
-    let gpt = Gpt::load_from_file(Path::new(loopdev))?;
-    let part = gpt.get_partition(3).context("Partition 3 not found")?;
-    
-    let original_bytes = part.size_in_bytes(sector_size);
-    let resized_bytes = fs_info.size();
-    let resized_sectors = resized_bytes / sector_size;
-    
-    log_info(&format!(
-        "Resizing ROOT from {} to {}",
-        utils::format_bytes(original_bytes),
-        utils::format_bytes(resized_bytes)
-    ));
-    
-    // Update partition size using cgpt
-    utils::shell(
-        "cgpt",
-        &["add", "-i", "3", "-s", &resized_sectors.to_string(), loopdev],
-        true,
-        false,
-    )?;
-    
-    // Update kernel about partition changes
-    utils::shell("partx", &["-u", "-n", "3", loopdev], true, false)?;
-    
-    Ok(())
-}
-
-/// Squash partitions to remove gaps
-fn squash_partitions(loopdev: &str) -> Result<()> {
-    log_info("Squashing partitions");
-    
-    let gpt = Gpt::load_from_file(Path::new(loopdev))?;
-    
-    for (part_num, _) in gpt.get_partitions_physical_order() {
-        log_info(&format!("Squashing {}p{}", loopdev, part_num));
-        utils::sfdisk_squash_partition(loopdev, part_num)?;
-    }
-    
     Ok(())
 }
 
@@ -454,7 +281,7 @@ fn patch_bootloader(
     }
     
     // Make everything executable
-    make_executable_recursive(mnt.path())?;
+    core::make_executable_recursive(mnt.path())?;
     
     utils::unmount_partition(mnt.path())?;
     
@@ -497,7 +324,7 @@ fn patch_m1nsh1m(
     
     log_info("Copying main payload");
     utils::copy_dir_recursive(payload_dir, mnt.path())?;
-    make_executable_recursive(mnt.path())?;
+    core::make_executable_recursive(mnt.path())?;
     
     // Copy extra payloads
     if let Some(extra_dir) = extra_payload_dir {
@@ -603,71 +430,6 @@ fn cgpt_add_auto(
     
     // Update kernel partition table
     utils::shell("partx", &["-u", "-n", &part_num.to_string(), loopdev], true, false)?;
-    
-    Ok(())
-}
-
-/// Truncate image to minimal size
-fn truncate_image(image: &Path, size_file: Option<&Path>) -> Result<()> {
-    const BUFFER_SECTORS: u64 = 35; // Magic number for GPT safety
-    
-    let gpt = Gpt::load_from_file(image)?;
-    let sector_size = gpt.block_size;
-    let final_sector = gpt.get_final_sector();
-    let end_bytes = (final_sector + BUFFER_SECTORS) * sector_size;
-    
-    log_info(&format!("Truncating image to {}", utils::format_bytes(end_bytes)));
-    
-    if utils::is_block_device(image) {
-        // For block devices, use losetup with size limit
-        let loopdev = utils::shell_output(
-            "losetup",
-            &["--show", "-f", "-P", image.to_str().unwrap(), "--sizelimit", &end_bytes.to_string()],
-            true,
-        )?;
-        let loopdev = loopdev.trim();
-        
-        utils::shell("sgdisk", &["-e", loopdev], true, false)?;
-        utils::shell("losetup", &["-d", loopdev], true, true)?;
-    } else {
-        utils::truncate_file(image, end_bytes)?;
-        utils::shell("sgdisk", &["-e", image.to_str().unwrap()], true, false)?;
-    }
-    
-    // Write size to file if requested
-    if let Some(size_path) = size_file {
-        fs::write(size_path, end_bytes.to_string())?;
-    }
-    
-    Ok(())
-}
-
-/// Make all files in a directory executable
-fn make_executable_recursive(path: &Path) -> Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    
-    for entry in walkdir::WalkDir::new(path) {
-        let entry = entry?;
-        if entry.file_type().is_file() {
-            let mut perms = fs::metadata(entry.path())?.permissions();
-            let mode = perms.mode();
-            perms.set_mode(mode | 0o111);
-            fs::set_permissions(entry.path(), perms)?;
-        }
-    }
-    Ok(())
-}
-
-/// Cleanup loop device
-fn cleanup_loop_device(loopdev: &str) -> Result<()> {
-    // Attempt to unmount any mounted partitions
-    for i in 1..=12 {
-        let part = format!("{}p{}", loopdev, i);
-        let _ = utils::shell("umount", &[&part], true, true);
-    }
-    
-    // Detach the loop device
-    let _ = utils::detach_loop_device(loopdev);
     
     Ok(())
 }

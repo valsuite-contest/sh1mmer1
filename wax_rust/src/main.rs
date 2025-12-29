@@ -4,6 +4,7 @@
 //! Originally developed by the Mercury Workshop team.
 
 mod commands;
+mod core;
 mod gpt;
 mod utils;
 mod ext2;
@@ -12,7 +13,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 
-const SCRIPT_DATE: &str = "2025-12-28";
+const SCRIPT_DATE: &str = "2025-12-29";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// M1NSH1M - Shim modifying automation tool
@@ -31,8 +32,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Modify a factory shim image with M1NSH1M payloads (wax)
+    /// Modify a factory shim image with M1NSH1M payloads (full featured)
     Wax(commands::wax::WaxArgs),
+    
+    /// Build a minimal shim with just enough to boot a custom payload
+    Minimal(commands::minimal::MinimalArgs),
     
     /// Strip payloads from a shim image
     Strip(commands::stripper::StripperArgs),
@@ -97,6 +101,7 @@ fn main() -> Result<()> {
     
     match cli.command {
         Commands::Wax(args) => commands::wax::run(args, cli.debug),
+        Commands::Minimal(args) => commands::minimal::run(args, cli.debug),
         Commands::Strip(args) => commands::stripper::run(args, cli.debug),
         Commands::Gpt2Image(args) => commands::gpt2image::run(args, cli.debug),
         Commands::GptTruncate(args) => commands::gpttruncate::run(args, cli.debug),

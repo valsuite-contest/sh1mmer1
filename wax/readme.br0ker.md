@@ -6,17 +6,17 @@
 
 1. Get Sh1mmer
 ```
-git clone https://github.com/MercuryWorkshop/sh1mmer
+git clone https://github.com/MercuryWorkshop/m1nsh1m
 ```
 
 2. Download the update for your board *(it may ask you to install dependencies)*
 ```
-cd sh1mmer/wax
+cd m1nsh1m/wax
 bash update_downloader.sh <board>
 ```
 (Replace `<board>` with your board (lowercase). Currently most common boards are supported.)
 
-The downloaded update files will now be located in `sh1mmer/wax/mounted_payloads/updates/16093`.
+The downloaded update files will now be located in `m1nsh1m/wax/mounted_payloads/updates/16093`.
 You may want to delete these when you're done building your shim, as they will automatically be built into any shims you build in the future otherwise.
 
 3. Build Sh1mmer with extra space

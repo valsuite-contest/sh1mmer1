@@ -1,13 +1,13 @@
-![SH1MMER (light)](/assets/sh1mmer_light_banner.png#gh-dark-mode-only)
-![SH1MMER (dark)](/assets/sh1mmer_dark_banner.png#gh-light-mode-only)
+![M1NSH1M (light)](/assets/m1nsh1m_light_banner.png#gh-dark-mode-only)
+![M1NSH1M (dark)](/assets/m1nsh1m_dark_banner.png#gh-light-mode-only)
 
 ### Shady Hardware 1nstrument Makes Machine Enrollment Retreat
 _Website, source tree, and write-up for a ChromeOS™️ enrollment jailbreak_
 ***
 
-## What is SH1MMER?
+## What is M1NSH1M?
 
-**SH1MMER** is an exploit found in the ChromeOS shim kernel that utilitzes modified RMA factory shims to gain code execution at recovery.
+**M1NSH1M** is an exploit found in the ChromeOS shim kernel that utilitzes modified RMA factory shims to gain code execution at recovery.
 _For more info, check out the blog post/writeup [here](https://blog.coolelectronics.me/breaking-cros-2/)_.
 
 #### How does it work?
@@ -19,7 +19,7 @@ We can edit the other partitions to our will as long as we remove the forced rea
 ## How do I use it?
 
 > [!NOTE]
-> [dl.sh1mmer.me](https://dl.sh1mmer.me) has been taken down, so you'll need to find a site rehosting the RMA shims alongside Chromebrew.
+> [dl.m1nsh1m.me](https://dl.m1nsh1m.me) has been taken down, so you'll need to find a site rehosting the RMA shims alongside Chromebrew.
 
 Here's how you do that.
 First, you need to know your Chromebook's board. Go to `chrome://version` on your Chromebook and copy the word after `stable-channel`.
@@ -44,26 +44,26 @@ You need to be on Linux or WSL2 and have the following packages installed: `git`
 You may need to install additional packages, which the script will prompt you to do.
 
 ```
-git clone https://github.com/MercuryWorkshop/sh1mmer
-cd sh1mmer/wax
+git clone https://github.com/MercuryWorkshop/m1nsh1m
+cd m1nsh1m/wax
 sudo bash wax.sh -i path/to/the/shim/you/downloaded.bin
 ```
 This will build a beautiful world mini shim. If you want to add chromebrew, do the following:
 
 ```
-git clone https://github.com/MercuryWorkshop/sh1mmer
-cd sh1mmer/wax
-wget "https://web.archive.org/web/20230324140756id_/https://dl.sh1mmer.me/build-tools/chromebrew/chromebrew.tar.gz"
+git clone https://github.com/MercuryWorkshop/m1nsh1m
+cd m1nsh1m/wax
+wget "https://web.archive.org/web/20230324140756id_/https://dl.m1nsh1m.me/build-tools/chromebrew/chromebrew.tar.gz"
 sudo bash wax.sh -i path/to/the/shim/you/downloaded.bin --chromebrew chromebrew.tar.gz -s 4G
 ```
 
 > [!NOTE]
 > If you want to build a devshim, replace `chromebrew.tar.gz` with `chromebrew-dev.tar.gz` and replace `-s 4G` with `-s 7G` in the wax command.
 > Devshim builds will mount a much larger Chromebrew partition over `/usr/local`,
-> allowing you to access a desktop environment and even Firefox from within SH1MMER.
+> allowing you to access a desktop environment and even Firefox from within M1NSH1M.
 > It's what allowed us to [run DOOM on a shim](https://github.com/CoolElectronics/blog/blob/master/src/content/blog/breaking/doom.jpg?raw=true).
 
-When this finishes, the bin file in the path you provided will have been converted into a **SH1MMER** image.
+When this finishes, the bin file in the path you provided will have been converted into a **M1NSH1M** image.
 *Note that this is a destructive operation, you will need to redownload a fresh shim to try again if it fails.*
 
 After injecting, you may continue to the "[Booting Into A Shim](#booting-into-a-shim)" section.
@@ -75,15 +75,15 @@ After injecting, you may continue to the "[Booting Into A Shim](#booting-into-a-
 Type out all of these commands in the terminal.
 
 ```
-git clone https://github.com/MercuryWorkshop/sh1mmer
-cd sh1mmer/wax
+git clone https://github.com/MercuryWorkshop/m1nsh1m
+cd m1nsh1m/wax
 sudo bash wax.sh -i path/to/the/shim/you/downloaded.bin -p legacy
 ```
 
 > [!NOTE]
 > Legacy shims are easier to update and are recommended for advanced users and developers.
 
-When this finishes, the bin file in the path you provided will have been converted into a **SH1MMER** image.
+When this finishes, the bin file in the path you provided will have been converted into a **M1NSH1M** image.
 *Note that this is a destructive operation, you will need to redownload a fresh shim to try again if it fails.*
 
 After injecting, you may continue to the "[Booting Into A Shim](#booting-into-a-shim)" section.
@@ -92,7 +92,7 @@ After injecting, you may continue to the "[Booting Into A Shim](#booting-into-a-
 
 ### Booting Into A Shim
 
-Once you have injected your raw shim with SH1MMER, go into the Chromebook Recovery Utility, select the settings icon (⚙️), select `Use local image`, and then select your injected shim.
+Once you have injected your raw shim with M1NSH1M, go into the Chromebook Recovery Utility, select the settings icon (⚙️), select `Use local image`, and then select your injected shim.
 Alternatively, you can also use other flashers such as [Rufus](https://rufis.ie), [UNetbootin](https://unetbootin.github.io/), etc. On linux, `dd` is recommended.
 *This may take up to 10 minutes, depending on the size of your shim and speed of your USB drive.*
 
@@ -100,7 +100,7 @@ On the Chromebook, press `ESC + Refresh (↻) + Power (⏻)` at the same time to
 This should enable Developer Mode or turn off OS Verification.
 *This may be blocked by system policy, but that doesn't matter.*
 
-Press `ESC + Refresh (↻) + Power (⏻)` at the same time again, then plug in your USB with SH1MMER and you should be booting into the Beautiful World GUI or a CLI screen.
+Press `ESC + Refresh (↻) + Power (⏻)` at the same time again, then plug in your USB with M1NSH1M and you should be booting into the Beautiful World GUI or a CLI screen.
 From here, you can play around with the options and do what you want.
 
 > [!NOTE]
@@ -133,7 +133,7 @@ This means that once both the A and B partitions were at least at r111, the devi
 
 If your Chromebook has never updated to r114, unenrollment is still possible if you're willing to [disable hardware write protection](https://docs.mrchromebox.tech/docs/supported-devices.html).
 On most devices, this will require you to take off the back of the Chromebook and unplug the battery, or bridge two jumper pins.
-Further instructions are on [the website](https://sh1mmer.me/#fog).
+Further instructions are on [the website](https://m1nsh1m.me/#fog).
 
 #### "Unenrolling" with write protection enabled
 If you aren't willing to take apart your Chromebook to unenroll, you can use an affiliated project,
@@ -213,7 +213,7 @@ Then switch out of VT2 and set up the device (don't reboot until you've finished
 Patched by [crrev/c/5010266](https://crrev.com/c/5010266) (r120, r114 LTS).  
 Works on r119 (kernver 2) and lower.
 
-This is bundled inside payloads in all SH1MMER shims; and all you need to do is boot SH1MMER, go to the payloads menu, and run the "Cryptosmite" payload.
+This is bundled inside payloads in all M1NSH1M shims; and all you need to do is boot M1NSH1M, go to the payloads menu, and run the "Cryptosmite" payload.
 
 ### BadRecovery
 [GitHub](https://github.com/BinBashBanana/badrecovery)
@@ -233,7 +233,7 @@ Works on r131 (kernver 4) and lower.
 Patched by [crrev/c/5805540](https://crrev.com/c/5805540) (r130).  
 Works on r129 (kernver 4) and lower.
 
-This is bundled inside payloads in all SH1MMER shims; and all you need to do is boot SH1MMER, go to the payloads menu, and run the "Icarus" payload.  
+This is bundled inside payloads in all M1NSH1M shims; and all you need to do is boot M1NSH1M, go to the payloads menu, and run the "Icarus" payload.  
 > [!NOTE]
 > You will need to setup a server using the [Icarus repo](https://github.com/cosmicdevv/Icarus-Lite), and follow the steps to connect to the proxy after running the payload.
 > The original repo by Writable can be found [here](https://github.com/MunyDev/icarus), however it is no longer working due to expired certificates.
@@ -244,7 +244,7 @@ No GitHub
 Patched by [crrev/c/6040974](https://crrev.com/c/6040974) (r133).  
 Works on r132 (kernver 5) and lower.
 
-This is bundled inside payloads in all SH1MMER shims; and all you need to do is boot SH1MMER, go to the payloads menu, and run the "Br0ker" payload.
+This is bundled inside payloads in all M1NSH1M shims; and all you need to do is boot M1NSH1M, go to the payloads menu, and run the "Br0ker" payload.
 You can also bundle the update file with the shim to automatically downgrade the device to a vulnerable version, assuming it has a low enough kernel version.
 Instructions can be found at [wax/readme.br0ker.md](./wax/readme.br0ker.md)
 
@@ -260,7 +260,7 @@ Instructions can be found at [wax/readme.br0ker.md](./wax/readme.br0ker.md)
 - [generic](https://discord.com/users/1052016750486638613) - Hosting alternative file mirror & crypto miner (troll emoji)
 - [Bypassi](https://discord.com/users/904829646145720340) - Helped with the website
 - [r58Playz](https://discord.com/users/803355425835188224) - Helped us set parts of the shim & made the initial GUI script
-- [OlyB](https://discord.com/users/476169716998733834) - Scraped additional shims & last remaining sh1mmer maintainer
+- [OlyB](https://discord.com/users/476169716998733834) - Scraped additional shims & last remaining m1nsh1m maintainer
 - [Sharp_Jack](https://discord.com/users/1006048734708240434) - Created wax & compiled the first shims
 - [ember](https://discord.com/users/1052344689178722375) - Helped with the website
 - [Mark](mailto:mark@mercurywork.shop) - Technical Understanding and Advisory into the ChromeOS ecosystem

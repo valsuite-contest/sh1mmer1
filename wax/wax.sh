@@ -20,7 +20,7 @@ missing_deps=$(check_deps partx sgdisk mkfs.ext4 mkfs.ext2 tune2fs e2fsck resize
 cleanup() {
 	[ -d "$MNT_ROOT" ] && umount "$MNT_ROOT" && rmdir "$MNT_ROOT"
 	[ -d "$MNT_BOOTLOADER" ] && umount "$MNT_BOOTLOADER" && rmdir "$MNT_BOOTLOADER"
-	[ -d "$MNT_SH1MMER" ] && umount "$MNT_SH1MMER" && rmdir "$MNT_SH1MMER"
+	[ -d "$MNT_M1NSH1M" ] && umount "$MNT_M1NSH1M" && rmdir "$MNT_M1NSH1M"
 	[ -z "$LOOPDEV" ] || losetup -d "$LOOPDEV" || :
 	trap - EXIT INT
 }
@@ -64,50 +64,50 @@ patch_bootloader() {
 	rmdir "$MNT_BOOTLOADER"
 }
 
-patch_sh1mmer() {
-	log_info "Creating SH1MMER partition ($(format_bytes $SH1MMER_PART_SIZE))"
+patch_m1nsh1m() {
+	log_info "Creating M1NSH1M partition ($(format_bytes $M1NSH1M_PART_SIZE))"
 	local sector_size=$(get_sector_size "$LOOPDEV")
-	cgpt_add_auto "$IMAGE" "$LOOPDEV" 1 $((SH1MMER_PART_SIZE / sector_size)) -t data -l SH1MMER
-	suppress mkfs.ext4 -F -b 4096 -L SH1MMER "${LOOPDEV}p1"
+	cgpt_add_auto "$IMAGE" "$LOOPDEV" 1 $((M1NSH1M_PART_SIZE / sector_size)) -t data -l M1NSH1M
+	suppress mkfs.ext4 -F -b 4096 -L M1NSH1M "${LOOPDEV}p1"
 
 	safesync
 
-	MNT_SH1MMER=$(mktemp -d)
-	mount "${LOOPDEV}p1" "$MNT_SH1MMER"
+	MNT_M1NSH1M=$(mktemp -d)
+	mount "${LOOPDEV}p1" "$MNT_M1NSH1M"
 
-	mkdir -p "$MNT_SH1MMER/dev_image/etc" "$MNT_SH1MMER/dev_image/factory/sh"
-	touch "$MNT_SH1MMER/dev_image/etc/lsb-factory"
+	mkdir -p "$MNT_M1NSH1M/dev_image/etc" "$MNT_M1NSH1M/dev_image/factory/sh"
+	touch "$MNT_M1NSH1M/dev_image/etc/lsb-factory"
 
 	log_info "Copying main payload"
-	[ -d "$PAYLOAD_DIR" ] && cp -R "$PAYLOAD_DIR/"* "$MNT_SH1MMER"
-	chmod -R +x "$MNT_SH1MMER"
+	[ -d "$PAYLOAD_DIR" ] && cp -R "$PAYLOAD_DIR/"* "$MNT_M1NSH1M"
+	chmod -R +x "$MNT_M1NSH1M"
 
 	if [ -n "$EXTRA_PAYLOAD_DIR" ]; then
 		log_info "Copying extra payload"
-		mkdir -p "$MNT_SH1MMER/root/noarch/payloads"
-		cp -R "$EXTRA_PAYLOAD_DIR/"* "$MNT_SH1MMER/root/noarch/payloads"
+		mkdir -p "$MNT_M1NSH1M/root/noarch/payloads"
+		cp -R "$EXTRA_PAYLOAD_DIR/"* "$MNT_M1NSH1M/root/noarch/payloads"
 	fi
 
 	if [ -n "$FIRMWARE_DIR" ]; then
 		log_info "Copying firmware"
-		mkdir -p "$MNT_SH1MMER/root/noarch/lib/firmware"
-		cp -R "$FIRMWARE_DIR/"* "$MNT_SH1MMER/root/noarch/lib/firmware"
+		mkdir -p "$MNT_M1NSH1M/root/noarch/lib/firmware"
+		cp -R "$FIRMWARE_DIR/"* "$MNT_M1NSH1M/root/noarch/lib/firmware"
 	fi
 
 	if [ -n "$MOUNTED_PAYLOAD_DIR" ] && compgen -G "$MOUNTED_PAYLOAD_DIR/"* >/dev/null; then
 		log_info "Copying mounted payload"
-		mkdir -p "$MNT_SH1MMER/mounted_payloads"
-		cp -R "$MOUNTED_PAYLOAD_DIR/"* "$MNT_SH1MMER/mounted_payloads"
+		mkdir -p "$MNT_M1NSH1M/mounted_payloads"
+		cp -R "$MOUNTED_PAYLOAD_DIR/"* "$MNT_M1NSH1M/mounted_payloads"
 	fi
 
 	if [ -n "$CHROMEBREW" ]; then
-		log_info "Extracting chromebrew... increase sh1mmer part size if this fails"
-		mkdir -p "$MNT_SH1MMER/chromebrew"
-		pv "$CHROMEBREW" | tar -xzf - --strip-components=1 -C "$MNT_SH1MMER/chromebrew"
+		log_info "Extracting chromebrew... increase m1nsh1m part size if this fails"
+		mkdir -p "$MNT_M1NSH1M/chromebrew"
+		pv "$CHROMEBREW" | tar -xzf - --strip-components=1 -C "$MNT_M1NSH1M/chromebrew"
 	fi
 
-	umount "$MNT_SH1MMER"
-	rmdir "$MNT_SH1MMER"
+	umount "$MNT_M1NSH1M"
+	rmdir "$MNT_M1NSH1M"
 }
 
 shrink_root() {
@@ -150,7 +150,7 @@ get_flags() {
 
 	DEFINE_string payload_dir "" "Custom main payload dir" ""
 
-	DEFINE_string sh1mmer_part_size "72M" "Partition size for payload(s)" "s"
+	DEFINE_string m1nsh1m_part_size "72M" "Partition size for payload(s)" "s"
 
 	DEFINE_string extra_payload_dir "${SCRIPT_DIR}/payloads" "Extra payload dir" "e"
 
@@ -199,8 +199,8 @@ if [ -n "$FLAGS_payload_dir" ]; then
 	PAYLOAD_DIR="$FLAGS_payload_dir"
 else
 	case "$FLAGS_payload" in
-		legacy) PAYLOAD_DIR="${SCRIPT_DIR}/sh1mmer_legacy" ;;
-		bw) PAYLOAD_DIR="${SCRIPT_DIR}/sh1mmer_bw" ;;
+		legacy) PAYLOAD_DIR="${SCRIPT_DIR}/m1nsh1m_legacy" ;;
+		bw) PAYLOAD_DIR="${SCRIPT_DIR}/m1nsh1m_bw" ;;
 		*) fail "Invalid payload '$FLAGS_payload'" ;;
 	esac
 fi
@@ -231,7 +231,7 @@ if [ -n "$FLAGS_chromebrew" ]; then
 	log_info "Using chromebrew: $CHROMEBREW"
 fi
 
-SH1MMER_PART_SIZE=$(parse_bytes "$FLAGS_sh1mmer_part_size") || fail "Could not parse size '$FLAGS_sh1mmer_part_size'"
+M1NSH1M_PART_SIZE=$(parse_bytes "$FLAGS_m1nsh1m_part_size") || fail "Could not parse size '$FLAGS_m1nsh1m_part_size'"
 BOOTLOADER_PART_SIZE=$(parse_bytes "$FLAGS_bootloader_part_size") || fail "Could not parse size '$FLAGS_bootloader_part_size'"
 
 # sane backup table
@@ -270,7 +270,7 @@ safesync
 suppress sgdisk -r 3:4 "$LOOPDEV"
 safesync
 
-patch_sh1mmer
+patch_m1nsh1m
 safesync
 
 losetup -d "$LOOPDEV"
